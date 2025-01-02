@@ -31,7 +31,7 @@ The following high-throughput sequencing modalities were used:
 3. **Transcription Factor Binding and Epigenomic Profiling:** Use CUT&Tag to determine how Bhlhe40 regulates specific gene loci.
 4. **Data Integration:**
    - Combine Bulk RNA-Seq with ATAC-Seq to correlate chromatin accessibility with gene expression.
-   - Integrate ATAC-Seq with CUT&Tag-Seq to link Bhlhe40 binding sites to accessible chromatin regions and active gene transcription.
+   - Integrate ATAC-Seq with CUT&Tag-Seq to link Bhlhe40 binding sites to accessible chromatin regions and active and inactive gene transcription.
 
 ---
 
