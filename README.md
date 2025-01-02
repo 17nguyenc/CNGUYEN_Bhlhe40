@@ -35,10 +35,3 @@ The following high-throughput sequencing modalities were used:
 
 ---
 
-## Repository Structure
-- **`scripts/`**: Custom analysis scripts for each data modality.
-- **`data/`**: Processed and raw data (note: raw sequencing data are available in public repositories linked in the paper).
-- **`results/`**: Final processed datasets, figures, and tables.
-- **`docs/`**: Documentation and workflow descriptions.
-
----
