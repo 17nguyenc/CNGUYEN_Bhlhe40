@@ -43,6 +43,7 @@ The following high-throughput sequencing modalities were used:
 This analysis was conducted using the following nf-core pipelines:
 - **[nf-core/rnaseq](https://nf-co.re/rnaseq):** For processing Bulk RNA-Seq data.
 - **[nf-core/cutandrun](https://nf-co.re/cutandrun):** For processing ATAC-Seq and CUT&Tag-Seq data.
+- - **Illumina's `bcl2fastq` and 10x Genomics' `cellranger`:** For processing Single-Cell RNA-Seq data.
 
 ---
 
