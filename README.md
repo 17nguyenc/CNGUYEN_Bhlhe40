@@ -22,6 +22,9 @@ The following high-throughput sequencing modalities were used:
 
 3. **CUT&Tag-Seq**
    - Epigenomic profiling to map Bhlhe40 binding sites and histone modifications in Th1 and Tfh cells.
+     
+4. **Single-Cell RNA-Seq (scRNA-Seq)**
+   - Used to measure the expression of Bhlhe40 in Th1 and Tfh cells during acute LCMV infection.
 
 ---
 
@@ -32,6 +35,7 @@ The following high-throughput sequencing modalities were used:
 4. **Data Integration:**
    - Combine Bulk RNA-Seq with ATAC-Seq to correlate chromatin accessibility with gene expression.
    - Integrate ATAC-Seq with CUT&Tag-Seq to link Bhlhe40 binding sites to accessible chromatin regions and active and inactive gene transcription.
+5. **Single-Cell Expression Analysis:** Use scRNA-Seq to evaluate Bhlhe40 expression levels in Th1 and Tfh cells during acute LCMV infection.
 
 ---
 
