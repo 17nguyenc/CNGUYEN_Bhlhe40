@@ -1,0 +1,572 @@
+---
+title: "RNASeq Analysis SMARTA D10, CXCR6 vs CXCR5 WT"
+author: "CN"
+date: "11/13/2022"
+output: html_document
+---
+This pipeline use the Salmon "quant.sf" files from the nfcore rnaseq pipeline as input. (via nfcore: Salmon > DESeq2)
+
+# Prepare for analysis
+
+```{r Set working directories & sample list}
+# Set the primary working dir for saving analysis results
+# getwd(), open up the folder where the samples are.../../CXCR5_Analysis or /../CXCR6_Analysis
+primary.wd <- "/Users/christinenguyen/Documents/bulkRNASeq/01_nfcore/salmon/CD4"
+
+```
+
+```{r Set working directories & sample list}
+# Set the dir of the input salmon quant data
+data.wd <- "/Users/christinenguyen/Documents/bulkRNASeq/01_nfcore/salmon/CD4"
+
+# List samples to work with. 
+# *The sample orders in the following lists must match with each other.
+## Names of samples in nf-core output (ex. sample folder names in "01_nfcore/salmon")
+
+data.names <- c("CXCR6-WT_1", "CXCR6-WT_2", "CXCR6-WT_3",
+                "CXCR5-WT_1", "CXCR5-WT_2", "CXCR5-WT_3")
+
+data.names1 <- c("CXCR6-WT_1", "CXCR6-WT_2", "CXCR6-WT_3",
+                "CXCR6-KO_1", "CXCR6-KO_2", "CXCR6-KO_3")
+
+data.names2 <- c("CXCR5-WT_1", "CXCR5-WT_2", "CXCR5-WT_3", 
+                "CXCR5-KO_1", "CXCR5-KO_2", "CXCR5-KO_3")
+
+data.names3 <- c("TFH_1", "TFH_2", "TFH_3",
+                 "CXCR5-KO_1", "CXCR5-KO_2", "CXCR5-KO_3")
+
+## How you want to name your samples in this analysis.
+sample.names <- c("CXCR6-WT_1", "CXCR6-WT_2", "CXCR6-WT_3",
+                  "CXCR5-WT_1", "CXCR5-WT_2", "CXCR5-WT_3")
+
+sample.names1 <- c("CXCR6-WT_1", "CXCR6-WT_2", "CXCR6-WT_3",
+                  "CXCR6-KO_1", "CXCR6-KO_2", "CXCR6-KO_3")
+
+sample.names2 <- c("CXCR5-WT_1", "CXCR5-WT_2", "CXCR5-WT_3", 
+                  "CXCR5-KO_1", "CXCR5-KO_2", "CXCR5-KO_3")
+
+sample.names3 <- c("TFH_1", "TFH_2", "TFH_3",
+                  "CXCR5-KO_1", "CXCR5-KO_2", "CXCR5-KO_3")
+
+
+## Group names of each sample
+group.names <- c("CXCR6_WT", 
+                 "CXCR5_WT")
+
+group.names1 <- c("CXCR6_WT",
+                  "CXCR6_BHLHE40-/-")
+
+group.names2 <- c("CXCR6_WT", 
+                 "CXCR6_BHLHE40-/-")
+
+group.names3 <- c("CXCR5_WT_SC",
+                  "CXCR5_BHLHE40-/-")
+
+## Set up Comparison name used for plot titles
+comparison.name <- "CXCR6_WT_vs_CXCR5_WT"
+comparison.name1 <- "CXCR6-WT_vs_CXCR6-BHLHE40-/-"
+comparison.name_2 <- "CXCR5-WT_vs_CXCR5-BHLHE40-/-"
+comparison.name_3 <- "CXCR5_WT_SC_vs_CXCR5_BHLHE40-/-"
+
+## Choose which group/condition to be used as reference in the comparison
+refer <- c("CXCR6_WT")
+refer1 <- c("CXCR6-WT")
+refer2 <- c("CXCR5-WT")
+refer3 <- c("CXCR5-WT_SC")
+
+```
+
+```{r Prepare tx2gene}
+library(biomaRt)
+
+#set working directory
+setwd(primary.wd) 
+
+#get ENSEMBL data
+mart <- useMart(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
+# getBM(attributes = c("ensembl_transcript_id", "transcript_version", "ensembl_gene_id","external_gene_name", "description", "transcript_biotype"),
+tx2gene <- getBM(attributes = c("ensembl_transcript_id", "external_gene_name"), mart = mart)
+
+#write.csv(tx2gene, "tx2gene.csv", row.names=FALSE)
+#Load saved tx2gene.csv
+tx2gene <- read.csv(paste(primary.wd, "tx2gene.csv", sep = "/"))
+tx2gene
+rm(mart)
+
+```
+
+```{r  Import gene quants from Salmon}
+library(tximport)
+
+# Prepare a sample sheet, this command is comparing CXCR5 groups
+sample.sheet <- paste(data.wd, data.names, "quant.sf", sep = "/")
+sample.sheet
+names(sample.sheet) <- sample.names
+#double check what you named the samples actually corresponds to the sample
+sample.sheet
+
+txi <- tximport(files = sample.sheet, type = "salmon", tx2gene = tx2gene,txIn = TRUE, txOut = FALSE, ignoreTxVersion = TRUE)
+View(sample.sheet)
+
+```
+
+```{r DEG analysis with DESeq2}
+library(DESeq2)
+library(ggrepel)
+library(pheatmap)
+
+#set working directory
+setwd(primary.wd)
+
+#creating a DESeqDataSet for use with DESeq2
+
+sampleTable <- data.frame(condition = factor(rep(c("CXCR6_WT", "CXCR5_WT"), each = 3)))
+rownames(sampleTable) <- colnames(txi$counts)
+
+dds <- DESeqDataSetFromTximport(txi, colData = sampleTable, ~condition)
+dds.all <- dds
+write.csv(as.data.frame(assay(dds.all)), file = "All_gene_counts.csv")
+
+#Differential expression analysis
+# Set CXCR6 as reference in comparison, CXCR6 vs CXCR5
+dds.all$condition <- relevel(dds.all$condition, ref = refer)
+dds.all <- DESeq(dds.all)
+rld.all <- rlog(dds.all, blind = FALSE)
+
+#doing just CXCR5 first,
+sampleTable2 <- data.frame(condition = factor(rep(c("CXCR5-WT", "CXCR5-BHLHE40-/-"), each = 3)))
+rownames(sampleTable2) <- colnames(txi$counts)
+
+dds2 <- DESeqDataSetFromTximport(txi, colData = sampleTable2, ~condition)
+dds2.all <- dds2
+write.csv(as.data.frame(assay(dds2.all)), file = "All_gene_counts2.csv")
+
+#Differential expression analysis
+# Set sgCtr as refernece in comparison
+dds2.all$condition <- relevel(dds2.all$condition, ref = refer2)
+dds2.all <- DESeq(dds2.all)
+rld2.all <- rlog(dds2.all, blind = FALSE)
+
+
+###
+# There is contamination of B cells.
+# Remove BCR/TCR genes
+# Make a list of BCR/TCR genes (not icluding TCR constant region genes incase they are differetially expressed)
+grey.list <- as.vector(unique(tx2gene[,2]))
+grey.list <- grey.list[grep("Igh|Igk|Igl|Trav|Trbv|Trdv|Trgv|Traj|Trbj|Trdj|Trgj",grey.list,ignore.case = F)]
+grey.list
+
+# Manually review the list and remove non-BCR/TCR genes.
+grey.list <- grey.list[! grey.list %in% c("Igll1","Iglon5","Ighmbp2")]
+write.csv(as.data.frame(grey.list), file = "graylist.csv", row.names=FALSE, col.names = F)
+grey.list <- read.csv(paste(primary.wd, "graylist.csv", sep = "/"))
+
+# Remove genes in the gray list
+dds <- dds[!rownames(dds) %in% grey.list]
+
+#Verify that undesired genes are removed from DESeq object. The sum should be 0.
+sum(rownames(dds) %in% grey.list)
+
+###
+
+# Only keep genes with reads
+dds <- dds[rowSums(counts(dds)) > 1, ]
+write.csv(as.data.frame(assay(dds)), file = "Filtered_gene_counts.csv")
+
+#Differential expression analysis
+# Set sgCtr as refernece in comparison
+# ref = refer = cxcr6, ref2 = refer2 = cxcr5
+dds$condition <- relevel(dds$condition, ref = refer)
+dds <- DESeq(dds)
+rld <- rlog(dds, blind = FALSE)
+  #test#
+plotDispEsts(dds)
+
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest
+res <- results(dds, contrast = c("condition", "CXCR6_WT", "CXCR5_WT"))
+res_2 <- results(dds2, contrast = c("condition", "CXCR5-WT", "CXCR5-BHLHE40-/-"))
+
+#Exporting results to CSV files, differential expression genes list
+sigg <- res[which(res$padj < 0.05), ]
+sigg <- sig[order(sigg$padj), ]
+sigg <- as.data.frame(sigg)
+write.csv(sig, 
+          file="condition_CD4_results.csv")
+
+
+sigg
+save(sigg, file = "dds.Rdata")
+
+sig_1 <- res_1[which(res_1$padj < 0.05), ]
+sig_1 <- sig_1[order(sig_1$padj), ]
+sig_1 <- as.data.frame(sig_1)
+write.csv(sig_1, 
+          file="condition_CXCR6_results.csv")
+
+sig_2 <- res_2[which(res_2$padj < 0.05), ]
+sig_2 <- sig_2[order(sig_2$padj), ]
+sig_2 <- as.data.frame(sig_2)
+write.csv(sig_2, 
+          file="condition_CXCR5_results.csv")
+
+#Log fold change shrinkage for visualization and ranking
+res_shrink <- lfcShrink(dds, contrast = c("condition","CXCR6_WT", "CXCR5_WT"), type = "normal")
+plotMA(res_shrink, ylim = c(-10,10))
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("apeglm")
+BiocManager::install("ashr")
+library(apeglm)
+library(ashr)
+res_shrink_2 <- lfcShrink(dds2, contrast = c("condition","CXCR5-WT", "CXCR5-BHLHE40-/-"), type = "apeglm")
+plotMA(res_shrink_2, ylim = c(-10,10))
+#Note that type='apeglm' and type='ashr' have shown to have less bias than type='normal'. 
+res_shrink <- lfcShrink(dds, coef = 2, type = "apeglm")
+res_shrink_2 <- lfcShrink(dds2, coef = 2, type = "apeglm")
+resultsNames(dds)
+dds$condition
+dds <-nbinomWaldTest(dds)
+#https://www.biostars.org/p/448959/
+plotMA(res_shrink, ylim = c(-10,10))
+
+```
+
+``` {r Enhanced Volcano} 
+library("EnhancedVolcano")
+library(ggplot2)
+#https://bioconductor.org/packages/devel/bioc/vignettes/EnhancedVolcano/inst/doc/EnhancedVolcano.html
+
+# Set a FDR/padj threshold "MIN_FDR"
+MIN_FDR <- c(0.05)
+
+EnhancedVolcano(res_shrink,
+    lab = rownames(res_shrink),
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    selectLab = c("Bhlhe40", "Tbx21", "Bcl6"),
+    title = "WT CXCR6+ Th1 vs WT CXCR5+ Tfh",
+    pCutoff = 0.05,
+    FCcutoff = .5,
+    pointSize = 2,
+    labSize = 6,
+    boxedLabels = TRUE)
+ggsave("EnhancedVolcano_WTCXCR6vsCXR5.png")
+
+```
+
+``` {r Differential expression}
+library("AnnotationDbi")
+library("org.Mm.eg.db")
+library("clusterProfiler")
+library("ReactomePA")
+library("reactome.db")
+
+#Differential Expression 
+lfc_list <- res_shrink$log2FoldChange
+names(lfc_list) <- rownames(res_shrink)
+lfc_list <- lfc_list[order(lfc_list, decreasing = TRUE)]
+names(lfc_list) <- mapIds(org.Mm.eg.db, keys = names(lfc_list), keytype = "SYMBOL", column = "ENTREZID")
+
+#KEGG pathway, look at the data sheet 
+gsea_kegg <- gseKEGG(lfc_list, organism = "mmu", pvalueCutoff = 1, nPerm = 10000)
+gsea_kegg <- setReadable(gsea_kegg, org.Mm.eg.db, keyType = "ENTREZID")
+View(as.data.frame(gsea_kegg))
+significant_gsea_kegg <- gsea_kegg[which(gsea_kegg$p.adjust < 0.05), ]
+View(as.data.frame(significant_gsea_kegg))
+#look over the data then select dataset closest to 0
+
+
+#Reactome pathway, p values closer to 0 more accurate, closer to 1 is chance
+gsea_Reactome <- gsePathway(lfc_list, organism = "mouse", pvalueCutoff = 1, nPerm = 10000)
+gsea_Reactome <- setReadable(gsea_Reactome, org.Mm.eg.db, keyType = "ENTREZID")
+View(as.data.frame(gsea_Reactome))
+significant_gsea_Reactome <- gsea_Reactome[which(gsea_Reactome$p.adjust < 0.05), ]
+View(as.data.frame(significant_gsea_Reactome))
+#look over the data then select dataset closest to 0
+
+#R-MMU-1234176, comparing CXCR5
+Oxygen-dependent proline hydroxylation of Hypoxia-inducible Factor Alpha
+R-MMU-2424491
+DAP12 signaling
+R-MMU-2172127
+DAP12 interactions
+R-MMU-70171
+R-MMU-70326
+Glucose metabolism
+R-MMU-6788467
+IL-6-type cytokine receptor ligand interactions
+R-MMU-8941858
+Regulation of RUNX3 expression and activity
+R-MMU-6811558
+PI5P, PP2A and IER3 Regulate PI3K/AKT Signaling
+R-MMU-170834
+Signaling by TGF-beta Receptor Complex
+
+
+#WNT1
+# make GSEA plot
+gseaplot(gsea_Reactome, 
+         "R-MMU-70171", 
+         by = "all",
+         title = "Glycolysis",
+         )
+#ggsave("Reactome_Glycolysis_CXCR5.png", dpi = 300)
+
+gseaplot(gsea_Reactome2, 
+         "R-MMU-451927", 
+         by = "all",
+         title = "Il2",
+         )
+# ggsave("Reactome_Il2_CXCR5.png", dpi = 300)
+
+# Selected Reactome
+dotplot(gsea_Reactome2, showCategory = c("R-MMU-2424491","R-MMU-2172127","R-MMU-70171","R-MMU-70326","R-MMU-6788467","R-MMU-8941858","R-MMU-6811558","R-MMU-170834"), x ="NES") # Switch legend so lowest p value (red) is on top
+# ggsave("Figures_Lung/03_GSEA_Reactome_Dot_Selected.pdf", dpi = 300, width = 9, height = 5)
+
+dotplot(gsea_Reactome2, showCategory=c("R-MMU-9614085",
+                                      "R-MMU-187037",
+                                      "R-MMU-187037",
+                                      "R-MMU-450294",
+                                      "R-MMU-2262752",
+                                      "R-MMU-2559583",
+                                      "R-MMU-2559580",
+                                      "R-MMU-2559586", 
+                                      "R-MMU-5250941"), x="NES") +
+  scale_color_gradient(low = "red", high = "gray") + ### Pick colors for p-value scale
+  guides(color = guide_colorbar(reverse = T)) 
+
+
+### Plot KEGG with top10 activated and supressed splited, comparing CXCR5 populations
+dotplot(gsea_kegg2, showCategory = 20, title = "Enriched KEGG Pathways" , split=".sign") + facet_grid(.~.sign)
+#ggsave("Enrichment_analysis/KEGG_Dot_split_Top10_CXCR5comparison.png")
+
+dotplot(gsea_Reactome2, showCategory = 20, title = "Enriched Reactome Pathways" , split=".sign") + facet_grid(.~.sign)
+#ggsave("Enrichment_analysis/KEGG_Dot_split_Top10_CXCR5comparison.png")
+
+### Plot KEGG Top50 in one
+dotplot(gsea_Reactome2, showCategory = 20, x = "NES", title = "Enriched KEGG Pathways" )
+ggsave("Enrichment_analysis/KEGG_Dot_NES_Top50.pdf", dpi = 300, width = 9, height = 20)
+
+library(enrichplot)
+### Plot a single pathway
+gseaplot2(gsea_kegg, geneSetID = "mmu04151", title = "PI3K-AKT Signaling")
+#ggsave("Enrichment_analysis/KEGG_DNA replication_CXCR5.png", dpi = 300, width = 6, height = 4)
+
+gseaplot2(gsea_kegg2, geneSetID = "mmu04310", title = "Wnt Signaling")
+#ggsave("Enrichment_analysis/KEGG_DNA replication.png", dpi = 300, width = 6, height = 4)
+
+gseaplot2(gsea_kegg2, geneSetID = "mmu00010", title = "Glycolysis")
+#ggsave("Enrichment_analysis/KEGG_DNA replication_CXCR5_Glycolysis.png", dpi = 300, width = 6, height = 4)
+
+```
+
+```{r PCA plot}
+#PCA plot 
+plotPCA(rld, intgroup = c("condition")) + 
+  geom_text_repel(aes(label = rownames(sampleTable)), nudge_x = 4, size = 2)
+#ggsave("PCAplot.pdf", dpi=300)
+
+
+### MYK edit
+plotPCA(rld, intgroup = c("condition")) +
+  scale_color_manual(values = c("dodgerblue", "black", "pink", "yellow")) + # Can edit exact shade of blue (see below)s
+  theme_bw() + # Cleans up the plot
+  guides(color = guide_legend(title = "Group")+ 
+  geom_point(size=1.5)) # Capitalize "g" in group
+### List of colors available in R: http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+ggsave("PCAplot_blue_black.png", dpi = 300,
+       scale =1, 
+       width = 5,height = 3, units = "in"
+       )
+```
+
+```{r Heatmap - Top variable genes}
+#heatmap (top 100 genes with highest variation across all samples), this is comparing CXCR5
+top_var_genes <- order(rowVars(assay(rld)), decreasing = TRUE)[1:100]
+#Heatmap annotation 
+pheatmap(assay(rld[top_var_genes, ]), cluster_cols = FALSE, cluster_rows = TRUE, 
+         clustering_method = "ward.D2", scale = "row", fontsize_row = 5, # All of the font sizes were too small.  Fontsize_row can be more specific
+         fontsize_col = 6, cellwidth = 8, cellheight = 8, # My preference is to make the heatmap cells more square.
+         #labels_col = sampleTable$condition, 
+         angle_col = 45,
+         annotation_col = sampleTable, filename = "heatmap_top100_var_genes.png")
+
+```
+
+```{r Heatmap - Top significant genes}
+#heatmap (top 100 genes with smalest padj)
+top_sig_genes <- order(res$padj, decreasing = F)[1:100]
+res.sig <- res[top_sig_genes,]
+top_sig_genes <- row.names(res.sig[order(res.sig$log2FoldChange, decreasing = T),])
+
+#Heatmap annotation 
+pheatmap(assay(rld[top_sig_genes, ]), cluster_cols = FALSE, cluster_rows = TRUE, 
+         clustering_method = "ward.D2", scale = "row", fontsize_row = 8, # All of the font sizes were too small.  Fontsize_row can be more specific
+         fontsize_col = 6, cellwidth = 8, cellheight = 8, # My preference is to make the heatmap cells more square.
+         #labels_col = sampleTable$condition, 
+         angle_col = 45,
+         annotation_col = sampleTable, filename = "heatmap_top100_sig_genes.png")
+rm(res.sig)
+
+```
+
+```{r Heatmap - Top significant genes}
+heatmap_colors <- c("purple","blue", "pink", "green")
+names(heatmap_colors) <- unique(sampleTable2$condition)
+heatmap_colors <- list(condition = heatmap_colors)
+
+# Cell type specific genes
+Celltype_genes <- c(
+    "Bhlhe40","Cd83","Il6ra","Id3","Tcf7","Sostdc1","Il4","Fas","Tox2","Cxcr5","Sh2d1a", "Bcl6", "Ascl2", "Plagl1", "Il6st", #GC Tfh markers
+    "Slamf1", "Tbx21", "Ifng", "Gzmb", "Runx3", "Id2", "Nr4a2", "Cxcr6", "Pim1", "Selplg", "Klf2", "Il10", #Th1
+#MHCII presentation
+    "H2-Eb1", "Cd74", "H2-Ab1", "H2-Aa", "Mfsd6",
+#Glycolysis Pathway - glucose transporters
+    "Slc2a3", "Pkm", "Aldoa", "Hk1", "Aldoc", "Pgk1")
+
+pheatmap(assay(rld2.all[Celltype_genes, ]), cluster_cols = F, cluster_rows = F,
+         #annotation_colors = heatmap_colors,
+         show_colnames = T, ### Added this line
+         treeheight_row = 0, treeheight_col = 0, ### To remove dendrograms
+         clustering_method = "ward.D2", scale = "row", fontsize_row = 8, 
+         fontsize_col = 8, cellwidth = 8, cellheight = 8, 
+         #labels_col = coldata$cell_name, 
+         annotation_col = sampleTable2, filename = "Heatmap_celltype_genes.png")
+
+pheatmap(assay(rld2.all[Celltype_genes, ]), cluster_cols = F, cluster_rows = F,
+         #annotation_colors = heatmap_colors,
+         show_colnames = T, ### Added this line
+         treeheight_row = 0, treeheight_col = 0, ### To remove dendrograms
+         clustering_method = "ward.D2", scale = "none", fontsize_row = 8, 
+         fontsize_col = 8, cellwidth = 8, cellheight = 8, 
+         #labels_col = coldata$cell_name, 
+         annotation_col = sampleTable, filename = "Heatmap_celltype_genes_noscale.pdf")
+
+```
+
+
+```{r MA & Volcano plots}
+library("EnhancedVolcano")
+
+# Set a FDR/padj threshold "MIN_FDR"
+MIN_FDR <- c(0.05)
+
+## MA
+
+plotMA(res_shrink_1, ylim = c(-10,10))
+
+pdf(file=paste0("MA_",comparison.name,".pdf"),width=5,height=5)
+  print(MA_plot<- DESeq2::plotMA(res_shrink_1, ylim = c(-3,3), main=paste("MA plot FDR <= ",MIN_FDR,sep=""),alpha=MIN_FDR, colNonSig = "gray32", colSig = "red3", colLine = "#ff000080"))
+dev.off()
+
+#https://bioconductor.org/packages/devel/bioc/vignettes/EnhancedVolcano/inst/doc/EnhancedVolcano.html
+EnhancedVolcano(res_shrink_2,
+    lab = rownames(res_shrink_2),
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    title = 'WT CXCR5 versus Bhlhe40-/- CXCR5',
+    pCutoff = 0.05,
+    FCcutoff = 1,
+    pointSize = 2.0,
+    labSize = 6.0)
+#ggsave("EnhancedVolcano_CXCR6.png")
+```
+
+```{r GSEA - KEGG & Reactome for cxcr5}
+library("AnnotationDbi")
+library("org.Mm.eg.db")
+library("clusterProfiler")
+library("ReactomePA")
+
+
+# Make a folder for GSEA results
+dir.create("Enrichment_analysis_CXCR6")
+
+# Prepare a list ranked by log2FoldChange
+lfc_list1 <- res_1$log2FoldChange
+names(lfc_list1) <- rownames(res_shrink_1)
+lfc_list1 <- lfc_list1[order(lfc_list1, decreasing = TRUE)]
+names(lfc_list1) <- mapIds(org.Mm.eg.db, keys = names(lfc_list1), keytype = "SYMBOL", column = "ENTREZID")
+head(lfc_list1)
+#lfc_list
+
+
+#KEGG pathway, human "Hsa", mouse "mmu"
+gsea_kegg <- gseKEGG(lfc_list1, organism = "mmu", pvalueCutoff = 1, nPerm = 10000)
+gsea_kegg <- setReadable(gsea_kegg, org.Mm.eg.db, keyType = "ENTREZID")
+significant_gsea_kegg <- gsea_kegg[which(gsea_kegg$p.adjust < 0.05), ]
+
+#Reactome pathway
+gsea_Reactome <- gsePathway(lfc_list1, organism = "mouse", pvalueCutoff = 1, nPerm = 10000)
+gsea_Reactome <- setReadable(gsea_Reactome, org.Mm.eg.db, keyType = "ENTREZID")
+significant_gsea_Reactome <- gsea_Reactome[which(gsea_Reactome$p.adjust < 0.05), ]
+
+
+### Plot KEGG with top10 activated and supressed splited, cxcr6
+dotplot(gsea_kegg, showCategory = 10, title = "Enriched KEGG Pathways" , split=".sign") + facet_grid(.~.sign)
+#ggsave("Enrichment_analysis/KEGG_Dot_split_Top20_cxcr6.png")
+
+#reactome, cxcr6
+dotplot(gsea_Reactome, showCategory = 10, title = "Enriched Reactome Pathways" , split=".sign") + facet_grid(.~.sign)
+#ggsave("Enrichment_analysis/Reactome_Dot_split_Top20_cxcr6.png")
+
+
+```
+
+```{r GSEA - Singature}
+library(msigdbr)
+
+# Make a folder for GSEA signature results
+dir.create("Enrichment_analysis/GSEA_signature")
+
+#molecular signature
+genelist <- res_shrink$log2FoldChange
+names(genelist) <- rownames(res_shrink)
+genelist <- genelist[order(genelist, decreasing = TRUE)]
+
+immune <- msigdbr(species = "Mus musculus", category = "C7") %>% dplyr::select(gs_name, gene_symbol)
+hallmark <- msigdbr(species = "Mus musculus", category = "H") %>% dplyr::select(gs_name, gene_symbol)
+canonical <- msigdbr(species = "Mus musculus", category = "C2") %>% dplyr::select(gs_name, gene_symbol)
+t2gene <- rbind(immune,hallmark,canonical)
+rm(immune,hallmark,canonical)
+
+GSEA_signature <- GSEA(genelist, TERM2GENE = t2gene, pvalueCutoff = 1)
+View(as.data.frame(GSEA_signature))
+GSEA_signature_sig <- GSEA_signature[which(GSEA_signature[,"p.adjust"] <0.05), ]
+View(as.data.frame(GSEA_signature_sig))
+
+##signature result
+write.csv(GSEA_signature, "GSEA_sig.csv")
+write.csv(GSEA_signature_sig, "GSEA_sig_sig.csv")
+
+# Manually convert the GSEA_signature_sig...csv to xlsx, exanmine the pathways and collect singature pathways into sheets.
+
+library(readxl)
+GSEA_selected <-read_xlsx("GSEA_sig_sig.xlsx")
+GSEA_selected <- GSEA_selected[order(GSEA_selected$NES, decreasing = F), ]
+GSEA_selected$ID <- factor(GSEA_selected$ID, levels = GSEA_selected$ID)
+
+ggplot(GSEA_selected, 
+      aes(x = NES, y = ID, color = p.adjust, size = setSize)) +
+      geom_point() +
+      theme_bw() +
+      scale_color_gradient(low = "red", high = "gray") + ### Pick colors for p-value scale
+      guides(color = guide_colorbar(reverse = T)) + ### Switch legend so lowest p value (red) is on top
+      xlim(-2.5, 2.5) + ### Make x-axis symmetric
+      theme(axis.title.y = element_blank()) + ### Remove y-axis title
+      guides(size = guide_legend(title = "Count")) ### Rename size legend to keep consistent with other plots
+ggsave("GSEA_selected.pdf")
+
+# Make GSEA curvy plot 
+gseaplot(GSEA_signature, 
+         geneSetID = "GSE14308_TH1_VS_NAIVE_CD4_TCELL_UP", 
+         title = "GSE14308_TH1_VS_NAIVE_CD4_TCELL_UP")
+ggsave("Enrichment_analysis/GSEA_signature/GSE9650_EFFECTOR_VS_EXHAUSTED_CD8_TCELL_DN.png", dpi = 300, width = 6, height = 4)
+
+```
+
+
+
+
