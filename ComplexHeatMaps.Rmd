@@ -1,0 +1,222 @@
+title: Generating complex heatmaps from RPKM files
+Author: CBREEZY
+date: 12/16/2022
+output:html_document
+objective: generate heatmaps from BulkRNAseq and CUT&Tag data
+
+```{r load libraries}
+library(DiffBind)
+library(gplots)
+library(dplyr)
+library(circlize)
+library(ComplexHeatmap)
+
+
+```
+
+```{r Getting da Genes, BulkRNASeq}
+setwd("/Users/christinenguyen/Desktop/diffbind")
+
+#Load in differential genes from BulkRNASeq, 3741 differentially expressed genes
+AvgExp <- read.csv("/Users/christinenguyen/Desktop/diffbind/condition_CD4_results.csv")
+AvgExp 
+
+#filter out the baseMean values > 50, this is noise
+AvgExp <- AvgExp[ (AvgExp$baseMean > 50) & (AvgExp$log2FoldChange > 0.25), ]
+AvgExp #15600 differentially expressed genes
+
+#put these bitches in order,
+AvgExp <- AvgExp[order(AvgExp$log2FoldChange, decreasing = TRUE), ]
+AvgExp
+
+#gene expression
+merge <- read.csv("/Users/christinenguyen/Desktop/diffbind/Filtered_gene_counts.csv")
+
+#if you are loading differentially expressed genes from BulkRNAseq data, use the .csv file that was generated under the section "#The contrast argument of results function is used to extract test results of log2 fold changes of interest"
+```
+
+
+```{r Getting da Genes, BulkRNASeq}
+CD4_diff_genes <- read.csv("condition_CD4_results.csv")
+#set threshold for differentially expressed
+CD4_diff_genes <- filter(CD4_diff_genes)
+write.csv(CD4_diff_genes, file = "CD4_Diff_genes.csv", row.names = FALSE)
+
+#load sig gene
+CD4_diff_genes <- read.csv("./CD4_Diff_genes.csv")[, 2]
+CD4_diff_genes
+
+```
+
+
+```{r Load RPKM data}
+setwd("/Users/christinenguyen/Desktop/diffbind")
+
+H3K4Me3_data <- read.table("./H3K4Me3_RPKM_all.txt", header = T)
+H3K27Me3_data <- read.table("./H3K27Me3_RPKM_all.txt", header = T)
+H3K27Ac_data <- read.table("./H3K27Ac_RPKM_all.txt", header = T)[, -1]
+
+H3K4Me3_data$peak <- paste(
+  paste(H3K4Me3_data$Chr, H3K4Me3_data$Start, sep = "_"),
+  H3K4Me3_data$End, sep = "_")
+#--
+H3K27Me3_data$peak <- paste(
+  paste(H3K27Me3_data$Chr, H3K27Me3_data$Start, sep = "_"), 
+  H3K27Me3_data$End, sep = "_")
+#--
+H3K27Ac_data$peak <- paste(
+  paste(H3K27Ac_data$Chr, H3K27Ac_data$Start, sep = "_"),
+  H3K27Ac_data$End, sep = "_")
+
+```
+
+```{r Merge Data frames}
+
+K4Me3_K27Me3_merge <- merge(x = H3K4Me3_data, y = H3K27Me3_data, by = "peak", all.x = F, all.y = F)
+
+
+```
+
+```{r load annotated Diffbind Peaks}
+#what are Diffbind Peak files? annotated peaks from mm10
+
+setwd("/Users/christinenguyen/Desktop/diffbind")
+
+Diffbind_peak_anno <- read.delim("./Diffbind_peak_anno.txt", header = T)
+Diffbind_peak_anno$Start <- Diffbind_peak_anno$Start-1
+
+Diffbind_peak_anno$peak <- paste(
+  paste(Diffbind_peak_anno$Chr, Diffbind_peak_anno$Start, sep = "_"),
+  Diffbind_peak_anno$End, sep = "_")
+
+```
+
+```{r Merge data frame with annotated peaks??}
+#organize the order 
+K4Me3_K27Me3_merge <- K4Me3_K27Me3_merge[order(K4Me3_K27Me3_merge$peak, decreasing = T), ]
+K4Me3_K27Me3_merge$Start <- K4Me3_K27Me3_merge$Start-1
+
+#organize the order 
+Diffbind_peak_anno <- Diffbind_peak_anno[order(Diffbind_peak_anno$peak, decreasing = T),]
+
+#Make sure the peaks match each other - Yes, 23753
+length(which(K4Me3_K27Me3_merge$peak %in% Diffbind_peak_anno$peak))
+
+K4Me3_K27Me3_merge$Gene.Name <- Diffbind_peak_anno$Gene.Name
+
+write.table(K4Me3_K27Me3_merge, file = "K4Me3_K27Me3_Diff_merge.txt",
+              sep = "\t", row.names = FALSE, col.names = T, quote = FALSE)
+
+```
+
+```{r Combining Differential Genes with yo data}
+
+CD4_diff_genes_H3K4Me3_H3K27Me3_Merge <- K4Me3_K27Me3_merge[which(K4Me3_K27Me3_merge$Gene.Name %in% CD4_diff_genes), ]
+
+write.table(CD4_diff_genes_H3K4Me3_H3K27Me3_Merge, file = "CD4_diff_genes_K4Me3_K27Me3_Diff_merge.txt",
+              sep = "\t", row.names = FALSE, col.names = T, quote = FALSE)
+
+CD4_diff_genes_H3K4Me3_H3K27Me3_Merge <- read.delim("CD4_diff_genes_K4Me3_K27Me3_Diff_merge.txt")
+
+```
+
+```{r Make Peaksets}
+
+#Significant between subsets only, 27 (this significance is based on diffbind)
+sig <- CD4_diff_genes_H3K4Me3_H3K27Me3_Merge[which(CD4_diff_genes_H3K4Me3_H3K27Me3_Merge$H3K4Me3_RPKM_CXCR6_vs_CXCR5 == "yes" & CD4_diff_genes_H3K4Me3_H3K27Me3_Merge$H3K27Me3_RPKM_CXCR6_vs_CXCR5 == "yes"), ]
+
+write.table(sig, file = "sig.txt",
+              sep = "\t", row.names = FALSE, col.names = T, quote = FALSE)
+
+sig <- read.delim("signif.txt")
+
+
+#Not significant between subsets, 766 (this non significance is based on diffbind)
+nosig <- CD4_diff_genes_H3K4Me3_H3K27Me3_Merge[which(CD4_diff_genes_H3K4Me3_H3K27Me3_Merge$H3K4Me3_RPKM_CXCR6_vs_CXCR5 == "no" & CD4_diff_genes_H3K4Me3_H3K27Me3_Merge$H3K27Me3_RPKM_CXCR6_vs_CXCR5 == "no"), ]
+
+#imma select out
+
+
+```
+
+```{r combine all the data with gene expression}
+Unique <- sig[which(sig$H3K4Me3_RPKM_CXCR6_vs_CXCR5 == "yes" | sig$H3K27Me3_RPKM_CXCR6_vs_CXCR5 == "yes"), ] #27 unique promoters
+Unique
+
+#check relevant Th1/Tfh genes from the "non-significant" group
+notUnique <- nosig[which(nosig$H3K4Me3_RPKM_CXCR6_vs_CXCR5 == "no" | nosig$H3K27Me3_RPKM_CXCR6_vs_CXCR5 == "no"), ]
+notUnique
+
+#add gene expression
+merger <- merge[which(merge$Chr %in% Unique$Gene.Name), ]
+merger$Gene.Name <- merger$Chr
+
+mergeer <- merge[which(merge$Chr %in% notUnique$Gene.Name), ]
+mergeer$Gene.Name <- mergeer$Chr
+
+#Combine based on the same genes from the same column
+Unique_h <- merge(Unique, merger, by = "Gene.Name")
+NotUnique_h <- merge(notUnique, mergeer, by = "Gene.Name")
+
+
+#Create each section for the separate heatmap plots 
+#Unique
+H3K4Me3 <- Unique_h[,c(7,8,9,10)]; rownames(H3K4Me3) <- Unique_h$Gene.Name
+H3K27Me3 <- Unique_h[,c(16,17,18,19)]; rownames(H3K27Me3) <- Unique_h$Gene.Name
+gene_expression <- Unique_h[,c(22,23,25,26)]; rownames(gene_expression) <- Unique_h$Gene.Name
+
+#NotUnique
+H3K4Me3_h <- NotUnique_h[,c(7,8,9,10)]; rownames(H3K4Me3_h) <- NotUnique_h$Gene.Name
+H3K27Me3_h <- NotUnique_h[,c(16,17,18,19)]; rownames(H3K27Me3_h) <- NotUnique_h$Gene.Name
+gene_expression_h <- Unique_h[,c(22,23,25,26)]; rownames(gene_expression_h) <- Unique_h$Gene.Name
+
+H3K4Me3_notunique_h[,c(6,7,8,9)]
+H3K4Me3_notunique_h[,c(13,14,16,17)]
+
+#scale the data into a Z-score
+H3K4Me3_scale <- t(apply(H3K4Me3, 1, function (x) { m = mean(x); s = sd(x); return((x - m) / s) }))
+H3K4Me3_scale <- na.omit(H3K4Me3_scale)
+
+H3K27Me3_scale <- t(apply(H3K27Me3, 1, function (x) { m = mean(x); s = sd(x); return((x - m) / s) }))
+H3K27Me3_scale <- na.omit(H3K27Me3_scale)
+
+gene_expression_scale <- t(apply(gene_expression, 1, function (x) { m = mean(x); s = sd(x); return((x - m) / s) }))
+gene_expression_scale <- na.omit(gene_expression_scale)
+
+```
+
+
+```{r let's get down to business}
+#design
+ha <-  HeatmapAnnotation(Cell_Type = c("CXCR6", "CXCR6", "CXCR5", "CXCR5"), 
+                         col = list(Cell_Type = c("CXCR6" = "coral1", "CXCR6" = "coral1", "CXCR5" = "deepskyblue1", "CXCR5" = "deepskyblue1")),
+                         annotation_name_side = "right")
+
+#make heatmap seperatly
+h1 <- Heatmap(gene_expression_scale, show_row_names = T, cluster_columns = FALSE, 
+             name = "gene_expression", top_annotation = ha, show_column_names = FALSE, clustering_method_rows = "ward.D2", row_labels = Unique_h$Gene.Name, row_names_side = c("left"), show_row_dend = F, column_title = "Gene")
+
+h2 <- Heatmap(H3K4Me3_scale, show_row_names = F, cluster_columns = FALSE, 
+             name = "H3K4me3", 
+             top_annotation = ha, show_column_names = FALSE, 
+             col = c("white", "darkgreen"), clustering_method_rows = "ward.D2", column_title = "H3K4Me3")
+
+h3 <- Heatmap(H3K27Me3_scale, show_row_names = F, cluster_columns = FALSE, 
+             name = "H3K27me3", 
+             top_annotation = ha, show_column_names = FALSE, 
+             col = c("white", "darkred"), clustering_method_rows = "ward.D2", column_title = "H3K27Me3")
+
+
+h1
+h2
+h3
+
+png("complexheatmap.png")
+h1+h2+h3
+dev.off() 
+
+while (!is.null(dev.list()))  dev.off()
+
+```
+
+
