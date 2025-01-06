@@ -47,3 +47,12 @@ This analysis was conducted using the following nf-core pipelines:
 
 ---
 
+## Using Singularity on HPC
+
+This analysis was executed on a High-Performance Computing (HPC) system using [Singularity](https://sylabs.io/singularity/) containers to ensure reproducibility and manage dependencies.
+
+## Institutional HPC Documentation
+
+The High-Performance Computing (HPC) resources and workflows used for this analysis are managed by the Research Computing Center (RCC) at the Medical College of Wisconsin (MCW). For detailed documentation and guidelines on using HPC resources, visit the institutional GitHub:
+
+- [MCW Research Computing Center Documentation](https://docs.rcc.mcw.edu/)
