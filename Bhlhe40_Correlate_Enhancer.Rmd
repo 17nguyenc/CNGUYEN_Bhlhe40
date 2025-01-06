@@ -1,0 +1,340 @@
+Name: Merging ATAC-Seq and CUT&Tag
+Date: 01/06/2022
+Document: html
+
+environment: terminal(merge bed files) > terminal (bedTools) > terminal (HOMER - annotatePeaks) > terminal (Heatmap:DeepTools)
+
+```{r Set Path}
+setwd("/Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer")
+
+```
+
+```{r bash Merging H3K27Ac Enhancer replicates}
+#Run this all in the terminal, you are just categorizing the bed files
+cd /Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer
+
+#check the pre
+wc -l /*R1.seacr.peaks.bed.stringent.bed
+
+#CXCR6
+cat ../CXCR6-H3K27Ac-D10_R1.seacr.peaks.bed.stringent.bed ../CXCR6-H3K27Ac-D12_R1.seacr.peaks.bed.stringent.bed > H3K27ac_CXCR6.bed; sortBed -i H3K27ac_CXCR6.bed > H3K27ac_CXCR6_sort.bed; rm H3K27ac_CXCR6.bed; mergeBed -i H3K27ac_CXCR6_sort.bed > H3K27ac_CXCR6.bed; rm H3K27ac_CXCR6_sort.bed
+
+#check that the counts number matches post merging, 
+#1686 counts
+wc -l H3K27ac_CXCR6.bed
+
+```
+
+```{r bash Merging H3K4Me3 Promoter replicates}
+#Run this all in the terminal, you are just categorizing the bed files
+cd /Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer
+
+#check the pre
+wc -l ../*R1.seacr.peaks.bed.stringent.bed
+
+#CXCR6
+cat ../CXCR6-H3K4Me3-D10_R1.seacr.peaks.bed.stringent.bed ../CXCR6-H3K4Me3-D12_R1.seacr.peaks.bed.stringent.bed > H3K4Me3_CXCR6.bed; sortBed -i H3K4Me3_CXCR6.bed > H3K4Me3_CXCR6_sort.bed; rm H3K4Me3_CXCR6.bed; mergeBed -i H3K4Me3_CXCR6_sort.bed > H3K4Me3_CXCR6.bed; rm H3K4Me3_CXCR6_sort.bed
+#Differing number of BED fields encountered at line: 1114.  Exiting...
+
+#check that the counts number matches post merging, 
+#1686 counts
+wc -l H3K4Me3_CXCR6.bed
+
+```
+
+```{r bash Merging H3K27Me3 Promoter replicates}
+#Run this all in the terminal, you are just categorizing the bed files
+cd /Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer
+
+#check the pre
+wc -l ../*R1.seacr.peaks.bed.stringent.bed
+
+#CXCR6
+cat ../CXCR6-H3K27Me3-D12_R1.seacr.peaks.bed.stringent.bed ../CXCR6-H3K27Me3_D12.bed > H3K4Me3_CXCR6.bed; sortBed -i H3K27Me3_CXCR6.bed > H3K27Me3_CXCR6_sort.bed; rm H3K27Me3_CXCR6.bed; mergeBed -i H3K27Me3_CXCR6_sort.bed > H3K27Me3_CXCR6.bed; rm H3K27Me3_CXCR6_sort.bed
+
+#check that the counts number matches post merging, 
+#1686 counts
+wc -l H3K27Me3_CXCR6.bed
+
+```
+
+```{r bash Merging Bhlhe40 CUT&Tag replicates}
+
+cd /Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer
+
+#bedfiles were placed OUTSIDE of folder hence the "../"
+#check the pre, 
+wc -l ../*stringent.bed
+
+# 869 ../JS-CD4-BHLHE40-1.stringent.for_anno.bed
+# 533 ../JS-CD4-BHLHE40-2.stringent.for_anno.bed
+cat ../CN-CD4-BHLHE40-1.stringent.bed ../CN-CD4-BHLHE40-2.stringent.bed > Bhlhe40_CXCR6.bed; sortBed -i Bhlhe40_CXCR6.bed > Bhlhe40_CXCR6_sort.bed; rm Bhlhe40_CXCR6.bed; mergeBed -i Bhlhe40_CXCR6_sort.bed > Bhlhe40_CXCR6.bed; rm Bhlhe40_CXCR6_sort.bed
+
+#1015 counts,(869+533=1400ish-1154counts = 248) 248 counts merged..
+wc -l Bhlhe40_CXCR6.bed
+
+```
+
+```{r bash run bedTools }
+#https://bedtools.readthedocs.io/en/latest/content/installation.html
+#keep all the coordinates in the .bed files, do NOT delete anything except to add the "Chr"
+#to add Chr, sed 's/^/chr/' CXCR6-H3K4Me3-D10_R1.seacr.peaks.bed.stringent.bed > boot.bed
+#awk '{print "chr"$6}' CXCR6-H3K4Me3-D10_R1.seacr.peaks.bed.stringent.bed > biggerboot.bed
+
+#intersect Bhlhe40 and H3k27Ac
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b CXCR6_H3K27Ac_D12_R1.seacr.peaks.bed.stringent.bed \
+> Bhlhe40_H3K27Ac.bed
+#311(1201) 26% Bhlhe40/H3K27Ac
+wc -l Bhlhe40_H3K27Ac.bed
+
+#no Bhlhe40 and H3K27Ac overlap
+# -v function here is to only report entries in A that do NOT overlap in B, so Bhlhe40+H3K27Ac-
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b CXCR6_H3K27Ac_D12_R1.seacr.peaks.bed.stringent.bed \
+-v \
+> Bhlhe40_NoH3K27Ac.bed
+#1123/1350 83% of Bhlhe40 binding is K27ac-
+wc -l Bhlhe40_NoH3K27Ac.bed
+
+#-------
+
+#intersect Bhlhe40 and H3K4Me3
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b WT-CXCR6-H3K4Me3.stringent.bed \
+> Bhlhe40_H3K4Me3.bed
+#130 9% of Bhlhe40/H3K4Me3 sites
+wc -l Bhlhe40_H3K4Me3.bed
+
+bedtools intersect -wa \
+-a CN-CD4-BHLHE40-1.stringent.bed \
+-b CN-CD4-H3K4me3.stringent.bed  \
+> Bhlhe40_H3K4Me3_2.bed
+#131/1347 9% of Bhlhe40/H3K4Me3 sites
+wc -l Bhlhe40_H3K4Me3_2.bed
+
+bedtools intersect -wa \
+-a CN-CD4-BHLHE40-2.stringent.bed \
+-b CN-CD4-H3K4me3.stringent.bed  \
+> Bhlhe40_H3K4Me3_3.bed
+#127/1347
+
+bedtools intersect -wa \
+-a JS-CD4-BHLHE40-1.stringent.bed \
+-b JS-CD4-H3K4me3.stringent.bed  \
+> Bhlhe40_H3K4Me3_4.bed
+#175/869 = 20%!!!!
+
+bedtools intersect -wa \
+-a JS-CD4-BHLHE40-1.stringent.bed \
+-b JS-CD4-H3K4me3.stringent.bed  \
+-v \
+> Bhlhe40_NoH3K4Me3_4.bed
+#694/869 = 79% !!
+
+bedtools intersect -wa \
+-a JS-CD4-BHLHE40-2.stringent.bed \
+-b JS-CD4-H3K4me3.stringent.bed  \
+> Bhlhe40_H3K4Me3_5.bed
+
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b WT-CXCR6-H3K4Me3.stringent.bed \
+-v \
+> Bhlhe40_NoH3K4Me3.bed
+#1221 
+wc -l Bhlhe40_NoH3K4Me3.bed
+
+#testing the other H3K4Me3 binding with Bhlhe40 occupancy
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b CXCR6-H3K4Me3-D10_R1.seacr.peaks.bed.stringent.bed \
+> Bhlhe40_H3K4Me3_1.bed
+#37/1347
+wc -l Bhlhe40_H3K4Me3_1.bed
+
+
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b WT-CXCR6-H3K4Me3.stringent.bed \
+> Bhlhe40_H3K4Me3.bed
+
+#------
+
+bedtools intersect -wa \
+-a Bhlhe40_CXCR6.bed \
+-b ../CXCR6-H3K4Me3-D10_R1.seacr.peaks.bed.stringent.bed \
+> Bhlhe40_H3K4Me3_2.bed
+#158 15% of Bhlhe40/H3K4Me3 sites
+wc -l Bhlhe40_H3K4Me3_2.bed
+
+#---
+
+#intersect Bhlhe40 and H3K27Me3
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b WT-CXCR6-H3K27Me3.stringent.bed \
+> Bhlhe40_H3K27Me3.bed
+#59B+k27Me3+/2702 H3K27Me3 sites 3% of Bhlhe40/H3K27Me3 sites
+wc -l Bhlhe40_H3K27Me3.bed
+
+#intersect Bhlhe40 with K27Me3 and extract the Bhlh40+H3K27me3-
+bedtools intersect -wa \
+-a WT-CXCR6-Bhlhe40.stringent.bed \
+-b WT-CXCR6-H3K27Me3.stringent.bed \
+-v \
+> Bhlhe40_NOH3K27Me3.bed
+#1291/2702
+
+
+```
+
+```{r bash HOMER findMotifs }
+
+#Check all bed files
+wc -l *bed
+
+#Active bioconda environment sequencingTools, calling the HOMER package thru conda 
+conda activate sequencingTools
+
+#find TF motif in subset-specific enhancer peaks, with out background
+#fill the name of the sample, this will go in the HOMER folder
+findMotifsGenome.pl Bhlhe40_H3K27Ac.bed mm10 Homer/Motif/WT_unique/ \
+-p 4 \
+-S 20 \
+-h \
+-size given
+
+findMotifsGenome.pl Bhlhe40_H3K4Me3.bed mm10 Homer/Motif/WT_unique/ \
+-p 4 \
+-S 20 \
+-h \
+-size given
+
+findMotifsGenome.pl Bhlhe40_H3K4Me3_2.bed mm10 Homer/Motif/WT_unique/ \
+-p 4 \
+-S 20 \
+-h \
+-size given
+
+findMotifsGenome.pl Bhlhe40_H3K27Me3.bed mm10 Homer/Motif/WT_unique/ \
+-p 4 \
+-S 20 \
+-h \
+-size given
+
+```
+
+
+```{r bash HOMER annotate Peaks}
+
+#set WD
+cd /media/cui-lab/Data_temp/Chrissy/Homer
+
+#use homer to annotatePeaks., http://homer.ucsd.edu/homer/ngs/annotation.html
+mkdir annotatePeaks
+
+#Make full length output, be sure to replace the name of the bed file here too
+#https://hemtools.readthedocs.io/en/latest/content/Bioinformatics_tools/homer.html
+annotatePeaks.pl Bhlhe40_H3K27Ac.bed mm10 \
+> annotatePeaks/Bhlhe40_H3K27Ac_ann.txt
+#this means to put the data in the annotatePeaks folders
+
+annotatePeaks.pl Bhlhe40_H3K4Me3.bed mm10 \
+> annotatePeaks/Bhlhe40_H3K4Me3_ann.txt
+
+annotatePeaks.pl Bhlhe40_H3K4Me3_2.bed mm10 \
+> annotatePeaks/Bhlhe40_H3K4Me3_2_ann.txt
+
+annotatePeaks.pl Bhlhe40_H3K27Me3.bed mm10 \
+> annotatePeaks/Bhlhe40_H3K27Me3_ann.txt
+
+```
+
+
+```{r make heatmap load up deepTools}
+#calculate scores per genome regions and prepare an intermediate file that can be used for "plotHeatmap"
+#https://deeptools.readthedocs.io/en/develop/content/tools/computeMatrix.html
+
+#install deepTools via Python since it is a python language. DO this on terminal
+
+computeMatrix reference-point -S \
+/Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer/GSM4077928_WT_Th1_rep1.bw \
+/Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer/WT-CXCR6-Bhlhe40.bigwig \
+-R Bhlhe40_H3K27Ac.bed Bhlhe40_NoH3K27Ac.bed \
+--beforeRegionStartLength 1000 \
+--afterRegionStartLength 1000 \
+--referencePoint center \
+-o Bhlhe40_H3K27Ac.mat.gz
+
+#using Bhlhe40 CUT&Tag as a filter, look at regions that have co-occupancy with H3K27ac and regions that are H3K27ac-
+computeMatrix reference-point -S \
+/Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer/WT-CXCR6-Bhlhe40.bigwig \
+-R Bhlhe40_H3K27Me3.bed Bhlhe40_NOH3K27Me3.bed \
+--beforeRegionStartLength 1000 \
+--afterRegionStartLength 1000 \
+--referencePoint center \
+-o Bhlhe40_H3K27Me3.mat.gz
+
+computeMatrix reference-point -S \
+/Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer/JS-CD4-BHLHE40-1.bigwig \
+-R Bhlhe40_H3K4Me3_4.bed Bhlhe40_NoH3K4Me3_4.bed \
+--beforeRegionStartLength 1000 \
+--afterRegionStartLength 1000 \
+--referencePoint center \
+-o Bhlhe40_H3K4Me3_4.mat.gz
+
+computeMatrix reference-point -S \
+/Users/christinenguyen/Desktop/diffbind/Bhlhe40_Correlate_Enhancer/WT-CXCR6-Bhlhe40.bigwig \
+-R Bhlhe40_NoH3K4Me3.bed Bhlhe40_\
+--beforeRegionStartLength 1000 \
+--afterRegionStartLength 1000 \
+--referencePoint center \
+-o Bhlhe40_H3K4Me3.mat.gz
+
+```
+
+
+```{r Plot Heatmap}
+
+plotHeatmap -m Bhlhe40_H3K27Ac.mat.gz \
+-out omg7.png \
+--dpi 100 \
+--refPointLabel 'Peak' \
+--whatToShow 'heatmap and colorbar' \
+--colorList 'darkblue,yellow' \
+--zMin 0 0 \
+--zMax 20 \
+--samplesLabel 'CXCR6+ Th1' \
+--heatmapWidth 5 \
+--heatmapHeight 20
+
+plotHeatmap -m Bhlhe40_H3K27Me3.mat.gz \
+-out omg8.png \
+--dpi 100 \
+--refPointLabel 'Peak' \
+--whatToShow 'heatmap and colorbar' \
+--colorList 'white,red' \
+--zMin 0 0 \
+--zMax 20 \
+--samplesLabel 'CXCR6+ Th1' \
+--heatmapWidth 5 \
+--heatmapHeight 20
+
+plotHeatmap -m Bhlhe40_H3K4Me3_4.mat.gz \
+-out omg11.png \
+--dpi 100 \
+--refPointLabel 'Peak' \
+--whatToShow 'heatmap and colorbar' \
+--colorList 'white,red' \
+--zMin 0 0 \
+--zMax 20 \
+--samplesLabel 'CXCR6+ Th1' \
+--heatmapWidth 5 \
+--heatmapHeight 20
+
+```
+
