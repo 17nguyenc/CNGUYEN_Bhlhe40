@@ -1,0 +1,667 @@
+---
+title: "CD4_Chrissy"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "~/Desktop/CD4_Achia/")
+```
+
+```{r Library}
+# install.packages("tidyverse")
+# install.packages("Seurat")
+
+# Anything with a pound sign in front is not counted as code and won't be run
+# You can take notes like this
+
+library(Seurat)
+library(tidyverse)
+library(monocle)
+library(ggplot2)
+```
+
+Anything in the background (outside of a chunk) is also not code and won't be run
+
+```{r Load data}
+CD4_Acute <- readRDS(file = "Acute_6_mice_edit5_2cell.RDS")
+```
+
+```{r UMAP}
+DefaultAssay(CD4_Acute) <- "RNA"
+#when using "default assay, use "integrated" for PCA...Change "Integrated" to "RNA" if want to generated any other plots such as UMAP, Violin, Feature, etc.
+#RNA - differential gene expression
+#Integrated - PCA, integrating all mice (n) into one graph
+
+CD4_Acute <- RunPCA(CD4_Acute, npcs = 50) # 50 PCs is now the default
+CD4_Acute <- RunUMAP(CD4_Acute, dims = 1:50) # Can use more PCs with scTransform than older log-normalization integration method
+CD4_Acute <- FindNeighbors(CD4_Acute, reduction = "pca", dims = 1:50)
+CD4_Acute <- FindClusters(CD4_Acute, resolution = 0.2)
+
+
+DimPlot(CD4_Acute, label = T)
+ggsave("Figures/UMAP.png", dpi = 300)
+VlnPlot(CD4_Acute, features = c("CD3E", "CD4", "CD8A", "CD8B"), ncol = 2, pt.size = 0)
+
+```
+
+```{r Top Differential genes}
+ # Find the top 100 markers per cluster
+
+DefaultAssay(CD4_Acute) <- "RNA"
+# markers <- FindAllMarkers(CD4_Acute, only.pos = TRUE)
+# write.csv(markers, "CD4_Acute.csv")
+markers <- read.csv("CD4_Acute.csv", row.names = 1)
+markers %>% group_by(cluster) %>% top_n(10, wt = avg_logFC)
+```
+```{r Renaming Clusters}
+CD4_Acute <- RenameIdents(CD4_Acute, "0" = "Tcmp", "1" = "Ly6c-hi Th1", "2" = "Lag3-hi Th1", "3" = "GC TFH2", "4" = "TFH1", "5" = "Pre TFH")
+```
+
+```{r Markers}
+DotPlot(object = CD4_Acute, features = c("Cd4", "Cd8a", "Cd19"))
+FeaturePlot(object = CD4_Acute, features = c("Cd4", "Cd8a", "Cd19"))
+DotPlot(object = CD4_Acute, features = c("Cxcr5", "Cxcr6", "Bcl6", "Tbx21", "Tcf7", "Lag3", "Ly6c2", "Irf8", "Bhlhe40", "Batf", "Tox2"))
+FeaturePlot(object = CD4_Acute, features = c("Cxcr5", "Cxcr6", "Bcl6", "Tbx21", "Tcf7", "Lag3", "Ly6c2", "Irf8", "Bhlhe40", "Batf", "Tox2"))
+DotPlot(CD4_Acute, features = c("Bcl6", "Il21", "Tbx21", "Ifng", "Bhlhe40"))
+ggsave("Rebuttal_Figure.png")
+
+#Confirm Lineage Markers
+#Th1relatedgenes
+DotPlot(object = CD4_Acute, features = c("Cx3cr1", "Cxcr6", "Slamf1", "Slamf6", "Irf8", "Tbx21", "Bhlhe40", "Gzmb", "Ifng", "Selplg"))
+Plot <- DotPlot(object = CD4_Acute, features = c("Cx3cr1", "Cxcr6", "Slamf1", "Slamf6", "Irf8", "Tbx21", "Bhlhe40", "Gzmb", "Ifng", "Selplg"))
+Plot + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Figures/Th1relatedgenes.pdf")
+
+VlnPlot(object = CD4_Acute, features = c("Bhlhe40"))
+# ggsave("Figures/Bhlhe40VlnPlt.pdf")
+
+#GCTfhrelatedgenes
+DotPlot(object = CD4_Acute, features = c("Bcl6", "Icos", "Pdcd1", "Cxcr5","Il21", "Tox2", "Tcf7", "Irf8", "Cd83", "Il1r2", "Hif1a")) 
+Plot1 <- DotPlot(object = CD4_Acute, features = c("Bcl6", "Icos", "Pdcd1", "Cxcr5","Il21", "Tox2", "Tcf7", "Irf8", "Cd83", "Il1r2", "Hif1a"))
+Plot1 + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Figures/Tfhrelatedgenes.pdf")
+
+#Memoryassociatedgenes
+DotPlot(object = CD4_Acute, features = c("Ccr7", "Lef1", "Il7r", "Id3"))
+# ggsave("Figures/Memoryrelatedgenes.pdf")
+ 
+#Tfh1 specific markers
+FeaturePlot(object = CD4_Acute, features = c("Bcl6", "Cxcr5", "Pdcd1", "Cd137", "Il1r2", "Irf8", "Tbx21", "Cxcr6", "Slamf1", "Bhlhe40"))
+# ggsave("Figures/FeaturePlot.png", dpi = 200)
+#Terminal differentiated Ly6ChiTh1 = Ccl5, Ccr2, Selplg (PSGL-1), Id2, 
+#Intermediated Lag3hi Th1 = Cxcr6, Ccl3, Ccl4, Ccl5
+#GC Tfh = Cxcr5, Pdcd1, Tox2, Tcf7,
+#TFH1 = Tnfrsf4, il1r2
+#PreTfh = Cd83, il1r2, Tnfrsf8
+
+DotPlot(object = CD4_Acute, features = c("Tnfrsf4", "Mif", "Ptma", "Srm", "Npm1", "Pa2g4", "Ncl", "Cd83", "Egr2", "Cxcl10", "Egr1"))
+
+#Memory Markers
+DotPlot(object = CD4_Acute, features = c("Il7r", "Ccr7", "Tcf7", "Lef1", "Id3", "Slamf6", "Bhlhe40", "Ran", "Cdk4"))
+
+```
+
+```{r Monocle Self Attempt}
+# Make a CDS Monocle object
+
+### Note that we need to use count data, not scaled data, for Monocle
+rm(data_monocle)
+
+data_monocle <- newCellDataSet(cellData = as.matrix(CD4_Acute@assays$RNA@counts), phenoData = new("AnnotatedDataFrame", data = CD4_Acute@meta.data))
+
+data_monocle@phenoData@data$current_ident <- CD4_Acute@active.ident
+
+##estimate size factor?
+  data_monocle <- estimateSizeFactors(data_monocle)
+
+  data_monocle <- estimateDispersions(data_monocle)
+
+#http://cole-trapnell-lab.github.io/monocle-release/docs/#getting-started-with-monocle  
+  
+#https://bookdown.org/ytliu13207/SingleCellMultiOmicsDataAnalysis/monocle2.html
+  
+data_monocle <- detectGenes(data_monocle, min_expr = 0.1)
+
+expressed_genes <- row.names(subset(fData(data_monocle), num_cells_expressed >= 0.05 * ncol(data_monocle)))
+  
+data_monocle <- setOrderingFilter(data_monocle, expressed_genes)
+  
+plot_ordering_genes(data_monocle)
+
+##Dimension Reduction
+data_monocle <- reduceDimension(data_monocle)
+
+##Ordering cells  
+data_monocle <- orderCells(data_monocle, root_state = NULL, num_paths = NULL, reverse = NULL)
+
+# saveRDS(data_monocle, "Monocle2_Analysis/MonocleARMD7.RDS")
+data_monocle <- readRDS("Monocle2_Analysis/MonocleARMD7.RDS")
+
+CD4_noTreg <- subset(data_monocle, idents = c("Treg"), invert = T)
+plot_cell_trajectory(data_monocle, color_by = "current_ident")
+
+##Visualize Gene Expression
+plot_genes_branched_pseudotime(data_monocle[c("Ccr7", "Il7r"), ],
+                               branch_point = 1,
+                               color_by = "current_ident",
+                               cell_size = 0.5,
+                               ncol = 2)
+  
+```
+```{r Monocle Analysis, Mouj's Script}
+#referencesite
+#http://cole-trapnell-lab.github.io/monocle-release/docs/
+
+data_monocle <- newCellDataSet(cellData = as.matrix(CD4_Acute@assays$RNA@counts), phenoData = new("AnnotatedDataFrame", data = CD4_Acute@meta.data))
+data_monocle@phenoData@data$current_ident <- CD4_Acute@active.ident
+data_monocle <- estimateSizeFactors(data_monocle)
+data_monocle <- estimateDispersions(data_monocle)
+data_monocle <- detectGenes(data_monocle, min_expr = 0.1)
+expressed_genes <- row.names(subset(fData(data_monocle), num_cells_expressed >= 0.05 * ncol(data_monocle)))
+
+# Find the top markers per cluster for Monocle to use
+DefaultAssay(CD4_Acute) <- "RNA"
+markers <- FindAllMarkers(CD4_Acute)
+markers <- subset(markers, p_val_adj < 0.05 & abs(avg_logFC) > 0.25)
+
+# Fewer genes make graph simpler, more genes make graph more complex
+top_markers_per_cluster <- markers %>% group_by(cluster) %>% top_n(-100, p_val_adj)
+data_ordering_genes <- unique(top_markers_per_cluster$gene)
+
+# Run monocle, regressing out mouse sample and the number of genes detected per cell
+data_monocle <- setOrderingFilter(data_monocle, ordering_genes = data_ordering_genes)
+plot_ordering_genes(data_monocle)
+data_monocle <- reduceDimension(data_monocle, reduction_method = "DDRTree", max_components = 2, residualModelFormulaStr = "~orig.ident + num_genes_expressed")
+data_monocle <- orderCells(data_monocle, reverse = T)
+plot_cell_trajectory(data_monocle)
+
+
+## ordering cells by assigning root nodes
+TCMPstate <- function(data_monocle){
+  if (length(unique(data_monocle$State)) > 1){
+    T0_counts <- table(pData(data_monocle)$State, pData(data_monocle)$current_ident)[,"Tcmp"]
+    return(as.numeric(names(T0_counts)[which
+                                       (T0_counts == max(T0_counts))]))
+  } else {
+    return (1)
+  }
+}
+data_monocle_RTstate <- orderCells(data_monocle, root_state =  TCMPstate(data_monocle))
+plot_cell_trajectory(data_monocle_RTstate, color_by = "current_ident", cell_size = .2)
+
+# saveRDS(data_monocle, "Monocle2_Analysis/ARMD10.RDS")
+data_monocle_RTstate <- readRDS("Monocle2_Analysis/ARMD10.RDS")
+
+#--------------------------------------------------------------------
+
+#Monocle Graphs
+plot_cell_trajectory(data_monocle_RTstate, color_by = "current_ident", cell_size = 0.2)
+# ggsave("Monocle2_Analysis/MonocleRAWday10ARM.png")
+
+plot_cell_trajectory(data_monocle_RTstate, color_by = "Pseudotime", cell_size = 0.2)
+# ggsave("Monocle2_Analysis/MonocleRAWday10ARM_Pseudotime.png")
+
+plot_cell_trajectory(data_monocle_RTstate, color_by = "current_ident", cell_size = 0.2) + facet_wrap(~current_ident)
+
+# Add a column called gene_short_name to the feature data that has the gene names, this is if you wanna pile your genes into one list and give it a name
+fData(data_monocle)[ , 3] <- rownames(fData(data_monocle))
+colnames(fData(data_monocle))[3] <- "gene_short_name"
+
+#Finding genes that change as a function of Pseudotime
+#Receptors
+#shows two kinetic trends, one for each lineage
+plot_genes_branched_pseudotime(data_monocle_RTstate[c("Il21r", "Il6ra", "Il4ra", "Il27ra", "Il2ra", "Il2rb", "Il12rb1"), ],
+                              branch_labels = c("Th1", "Tfh"),
+                               branch_point = 1,
+                               color_by = "current_ident",
+                               cell_size = 1,
+                               ncol = 2) + labs(CD4_Acute, title = "Receptors")
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Receptors.png") 
+
+DotPlot(CD4_Acute, features = c("Il21r", "Il6ra", "Il4ra", "Il27ra", "Il2ra", "Il2rb", "Il12rb1")) + labs(CD4_Acute, title = "Receptors") + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Receptors_Dotplot.png") 
+
+#TfhCellGenes
+plot_genes_branched_pseudotime(data_monocle_RTstate[c("Cxcr5", "Bcl6", "Ascl2", "Pdcd1", "Icos", "Il21", "Il4", "Sostdc1", "Tox", "Tox2", "Tbx21"), ],
+                               branch_labels = c("Th1", "Tfh"),
+                               branch_point = 1,
+                               color_by = "current_ident",
+                               cell_size = 0.5,
+                               ncol = 3) + labs(CD4_Acute, title = "Tfh Gene Signature")
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Tfhgenes.png")
+DotPlot(CD4_Acute, features = c("Cxcr5", "Bcl6", "Ascl2", "Pdcd1", "Icos", "Il21", "Il4", "Sostdc1", "Tox", "Tox2", "Tbx21")) + labs(CD4_Acute, title = "Tfh Gene Signature") + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Tfhgenes_Dotplot.png")
+
+
+#AP-1 transcription factors
+plot_genes_branched_pseudotime(data_monocle_RTstate[c("Jun", "Junb", "Jund", "Fos", "Batf", "Batf3", "Atf2", "Atf3", "Atf4", "Maf", "Mafa", "Mafb", "Mafg"), ],
+                               branch_labels = c("Th1", "Tfh"),
+                               branch_point = 1,
+                               color_by = "current_ident",
+                               cell_size = 0.5,
+                               ncol = 3) + labs(CD4_Acute, title = "AP-1 Transcription Factors")
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_AP1genes.png")
+
+DotPlot(CD4_Acute, features = c("Jun", "Junb", "Jund", "Fos", "Batf", "Batf3", "Atf2", "Atf3", "Atf4", "Maf", "Mafa", "Mafb", "Mafg")) + labs(CD4_Acute, title = "AP-1 Transcription Factors") + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_AP1genes_Dotplot.png")                                                
+
+#Genes from RNASeq data
+plot_genes_branched_pseudotime(data_monocle_RTstate[c("Lad1", "Wnt10a", "Cd109", "Wnt3", "Oasl2", "Epas1", "Cbr2", "Ifi211", "Ifit3", "Eomes", "Sostdc1", "Epcam", "Padi4", "Foxp3", "Rgs16", "Rbm44", "Fgf2", "S100a4", "S100a6", "S100a8", "Ccl3", "Ccr8", "Slc7a10", "Ccl4", "Reg1"), ],
+                               branch_labels = c("Th1", "Tfh"),
+                               branch_point = 1,
+                               color_by = "current_ident",
+                               cell_size = 0.5,
+                               ncol = 5) + labs(CD4_Acute, title = "RNA-Seq data genes") 
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_RNASeqdatagenes.png")
+
+DotPlot(CD4_Acute, features = c("Lad1", "Wnt10a", "Cd109", "Wnt3", "Oasl2", "Epas1", "Cbr2", "Ifi211", "Ifit3", "Eomes", "Sostdc1", "Epcam", "Padi4", "Foxp3", "Rgs16", "Rbm44", "Fgf2", "S100a4", "S100a6", "S100a8", "Ccl3", "Ccr8", "Slc7a10", "Ccl4", "Reg1")) + labs(CD4_Acute, title = "RNASeq data genes") + theme(axis.text.x = element_text(angle = 40, size = 8)) 
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_RNASeqdatagenes_Dotplot.png")
+```
+
+```{r Monocle My stuff}
+#shows two kinetic trends, one for each lineage
+plot_genes_branched_pseudotime(data_monocle[c("Bhlhe40", "Tbx21", "Bcl6")],
+                              branch_labels = c("Th1", "Tfh"),
+                               branch_point = 1,
+                               color_by = "current_ident",
+                               cell_size = 1,
+                               ncol = 2) + labs(CD4_Acute, title = "Receptors")
+# ggsave("Figures/Pseudotime_Bhlhe40.png")
+
+```
+
+
+```{r Personal Markers}
+VlnPlot(object = CD4_Acute, features = c("Tbx21", "Irf8", "Cxcr5", "Pdcd1", "Prdm1", "Batf"), pt.size = 0)
+
+# ggsave(filename = "Figures/PreTFH_VlnPlot.png", dpi = 300)
+
+DotPlot(CD4_Acute, features = c("Bhlhe40", "Tbx21", "Bcl6", "Batf", "Bhlhe41", "Cxcr5", "Pdcd1", "Irf8", "Ifng","Cxcr6", "Il10"))
+ggsave(filename = "Figures/PreTFH_DotPlot.png", dpi = 300)
+
+```
+
+```{r Subset out Th1 Population}
+CD4_Th1_subsets <- subset (CD4_Acute, idents = c(0, 1, 2))
+#   0    1    2    3    4    5 
+# 4816 2792 2464    0    0    0 
+table(CD4_Th1_subsets$seurat_clusters)
+DimPlot(CD4_Th1_subsets)
+```
+```{r UMAP Took out Tfhs}
+CD4_Th1_subsets <- ScaleData(CD4_Th1_subsets, features = rownames(CD4_Th1_subsets))
+CD4_Th1_subsets <- FindVariableFeatures(CD4_Th1_subsets)
+
+CD4_Th1_subsets <- RunPCA(CD4_Th1_subsets, npcs = 50, verbose = F)
+CD4_Th1_subsets <- RunUMAP(CD4_Th1_subsets, reduction = "pca", dims = 1:50)
+CD4_Th1_subsets <- FindNeighbors(CD4_Th1_subsets, reduction = "pca", dims = 1:50)
+CD4_Th1_subsets <- FindClusters(CD4_Th1_subsets, resolution = 0.3)
+
+DimPlot(CD4_Th1_subsets, label = T)
+
+table(CD4_Th1_subsets$seurat_clusters)
+```
+```{r Th1 clean up}
+CD4_Th1_subsets_pure <- subset(CD4_Th1_subsets, idents = c(0, 1, 2))
+
+table(CD4_Th1_subsets_pure$seurat_clusters)
+#  0    1    2    3 
+#4806 2889 2327    0 
+
+#Normalize/Transform
+DefaultAssay(CD4_Th1_subsets_pure) 
+CD4_Th1_subsets_pure <- SCTransform(CD4_Th1_subsets_pure)
+
+#UMAP
+DefaultAssay(CD4_Th1_subsets_pure) <- "integrated"
+
+CD4_Th1_subsets_pure <- RunPCA(CD4_Th1_subsets_pure, npcs = 50) # 50 PCs is now the default
+CD4_Th1_subsets_pure <- RunUMAP(CD4_Th1_subsets_pure, dims = 1:50) # Can use more PCs with scTransform than older log-normalization integration method
+CD4_Th1_subsets_pure <- FindNeighbors(CD4_Th1_subsets_pure, reduction = "pca", dims = 1:50)
+CD4_Th1_subsets_pure <- FindClusters(CD4_Th1_subsets_pure, resolution = 0.3)
+
+DimPlot(CD4_Th1_subsets_pure, label = TRUE)
+# ggsave("Figures/CD4_Th1_subsets_pure.png")
+
+Th1_subset <- RenameIdents(object = CD4_Th1_subsets_pure, '0' = 'Tcmp', '1' = 'Ly6CHi-Th1', '2' = 'Lag3Hi-Th1')
+table(Idents(Th1_subset))
+DimPlot(Th1_subset, label = T, pt.size = 0.5)
+# ggsave("Figures/Th1subset_UMAP.png")
+
+#save as RDS
+#saveRDS(Th1_subset, "Th1_subset.RDS") ### MYK - Always leave this commented out so you don't accidentally override your saved RDS object
+Th1_subset <- readRDS("Th1_subset.RDS")
+
+```
+
+```{r RNA, Markers check of Th1 subsets}
+
+DefaultAssay(Th1_subset) <- "RNA"
+Th1_subset <- NormalizeData(Th1_subset)
+
+DotPlot(Th1_subset, features = c("Ly6c", "Lag3", "Bhlhe40")) #TFH1, cluster 2
+
+
+
+Th1_subset<- FindAllMarkers(Th1_subset, only.pos = T)
+write.csv(Th1_subset, "CD4_Th1_subsets_markers_pure.csv")
+#run the first 2 lines individually then null it
+CD4_Th1_subsets_markers_pure <- read.csv("CD4_Th1_subsets_markers_pure.csv", row.names = 1)
+CD4_Th1_subsets_markers_pure %>% group_by(cluster) %>% top_n(10, wt = avg_logFC)
+
+
+
+```
+```{r Monocle for Th1 subsets}
+
+data_monocle_Th1 <- newCellDataSet(cellData = as.matrix(Th1_subset@assays$RNA@counts), phenoData = new("AnnotatedDataFrame", data = Th1_subset@meta.data))
+data_monocle_Th1@phenoData@data$current_ident <- Th1_subset@active.ident
+data_monocle_Th1 <- estimateSizeFactors(data_monocle_Th1)
+data_monocle_Th1 <- estimateDispersions(data_monocle_Th1)
+data_monocle_Th1 <- detectGenes(data_monocle_Th1, min_expr = 0.1)
+expressed_genes <- row.names(subset(fData(data_monocle_Th1), num_cells_expressed >= 0.05 * ncol(data_monocle_Th1)))
+
+# Find the top markers per cluster for Monocle to use
+DefaultAssay(Th1_subset) <- "RNA"
+markers_Th1 <- FindAllMarkers(Th1_subset)
+markers_Th1 <- subset(markers_Th1, p_val_adj < 0.05 & abs(avg_logFC) > 0.25)
+
+# Fewer genes make graph simpler, more genes make graph more complex
+top_markers_per_cluster_Th1 <- markers_Th1 %>% group_by(cluster) %>% top_n(-100, p_val_adj)
+data_ordering_genes_Th1 <- unique(top_markers_per_cluster_Th1$gene)
+
+# Run monocle, regressing out mouse sample and the number of genes detected per cell
+data_monocle_Th1 <- setOrderingFilter(data_monocle_Th1, ordering_genes = data_ordering_genes_Th1)
+plot_ordering_genes(data_monocle_Th1)
+data_monocle_Th1 <- reduceDimension(data_monocle_Th1, reduction_method = "DDRTree", max_components = 2, residualModelFormulaStr = "~orig.ident + num_genes_expressed")
+data_monocle_Th1 <- orderCells(data_monocle_Th1, reverse = T)
+plot_cell_trajectory(data_monocle_Th1)
+
+## ordering cells by assigning root nodes
+TCMPstate <- function(data_monocle_Th1){
+  if (length(unique(data_monocle_Th1$State)) > 1){
+    T0_counts <- table(pData(data_monocle_Th1)$State, pData(data_monocle_Th1)$current_ident)[,"Tcmp"]
+    return(as.numeric(names(T0_counts)[which
+                                       (T0_counts == max(T0_counts))]))
+  } else {
+    return (1)
+  }
+}
+data_monocle_RTstate_Th1 <- orderCells(data_monocle_Th1, root_state =  TCMPstate(data_monocle_Th1))
+plot_cell_trajectory(data_monocle_RTstate_Th1, color_by = "current_ident", cell_size = .5)
+# ggsave("Figures/Monocle_TfhSubsets.png")
+
+# saveRDS(data_monocle_RTstate_Th1, "Monocle2_Analysis/ARMD10Th1.RDS")
+data_monocle_RTstate_Th1 <- readRDS("Monocle2_Analysis/ARMD10Th1.RDS")
+
+plot_genes_in_pseudotime(data_monocle_RTstate_Th1[c("Bhlhe40") ],
+                               color_by = "current_ident",
+                               cell_size = .75,
+                               ncol = 2) + labs(Th1_subset)
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Th1.png") 
+
+```
+
+```{r UMAP Took out Th1s}
+CD4_Tfh_subsets <- ScaleData(CD4_Tfh_subsets, features = rownames(CD4_Tfh_subsets))
+CD4_Tfh_subsets <- FindVariableFeatures(CD4_Tfh_subsets)
+
+CD4_Tfh_subsets <- RunPCA(CD4_Tfh_subsets, npcs = 50, verbose = F)
+CD4_Tfh_subsets <- RunUMAP(CD4_Tfh_subsets, reduction = "pca", dims = 1:50)
+CD4_Tfh_subsets <- FindNeighbors(CD4_Tfh_subsets, reduction = "pca", dims = 1:50)
+CD4_Tfh_subsets <- FindClusters(CD4_Tfh_subsets, resolution = 0.3)
+
+DimPlot(CD4_Tfh_subsets, label = T)
+
+table(CD4_Tfh_subsets$seurat_clusters)
+```
+```{r Tfh clean up}
+CD4_Tfh_subsets_pure <- subset(CD4_Tfh_subsets, idents = c(0, 1, 2, 3))
+
+table(CD4_Tfh_subsets_pure$seurat_clusters)
+#0    1    2    3    4 
+#2601 2577 1627 1376  570 
+
+#Normalize/Transform
+DefaultAssay(CD4_Tfh_subsets_pure) 
+CD4_Tfh_subsets_pure <- SCTransform(CD4_Tfh_subsets_pure)
+
+
+#UMAP
+DefaultAssay(CD4_Tfh_subsets_pure) <- "integrated"
+
+CD4_Tfh_subsets_pure <- RunPCA(CD4_Tfh_subsets_pure, npcs = 50) # 50 PCs is now the default
+CD4_Tfh_subsets_pure <- RunUMAP(CD4_Tfh_subsets_pure, dims = 1:50) # Can use more PCs with scTransform than older log-normalization integration method
+CD4_Tfh_subsets_pure <- FindNeighbors(CD4_Tfh_subsets_pure, reduction = "pca", dims = 1:50)
+CD4_Tfh_subsets_pure <- FindClusters(CD4_Tfh_subsets_pure, resolution = 0.3)
+
+DimPlot(CD4_Tfh_subsets_pure, label = TRUE)
+# ggsave("Figures/CD4_Tfh_subsets_pure.png")
+
+#Merging 2 fucking clusters by just renaming it, not having to integrate or rerunning shit, WORKS, this is tcmp and the tfh subsets 
+#https://ucdavis-bioinformatics-training.github.io/2019-single-cell-RNA-sequencing-Workshop-UCD_UCSF/scrnaseq_analysis/scRNA_Workshop-PART5.html
+idk <- RenameIdents(object = CD4_Tfh_subsets_pure, 'Naive CD4 T' = 'Tcmp', 'Memory CD4 T' = 'Tcmp', 'B' = 'GC Tfh', 'CD14+ Mono' = 'Tfh1', 'CD8 T' = 'pre Tfh')
+table(Idents(idk))
+DimPlot(idk, label = T, pt.size = 0.5)
+# ggsave("Figures/Tfhsubset_UMAP.png")
+
+#save as RDS
+# saveRDS(idk, "idk.RDS") ### MYK - Always leave this commented out so you don't accidentally override your saved RDS object
+idk <- readRDS("idk.RDS")
+```
+
+```{r RNA, Markers check of Tfh subsets}
+
+DefaultAssay(idk) <- "RNA"
+idk <- NormalizeData(idk)
+
+DotPlot(idk, features = c( "Mif", "Eif5a", "C1qbp", "Ptma", "Srm", "Npm1", "Pa2g4", "Ncl", "Il1r2", "Tnfrsf4", "Bhlhe40")) #TFH1, cluster 2
+DotPlot(idk, features = c( "Egr2", "Cd83", "Marcksl1", "Rilpl2", "Tnfsf8", "Il1r2", "Rgs16", "Cxcl10", "Egr1", "Batf", "Bhlhe40")) #preTFH, cluster 4
+DotPlot(idk, features = c( "Sostdc1", "Rgs10", "Cxcr5", "Izumo1r", "Pdcd1", "Dennd2d", "Tox2", "Mark", "Smco4", "Tcf7", "Bhlhe40")) #GC Tfh, cluster 3
+# Bhlhe40 expression is the highest in preTFHs
+DotPlot(idk, features = c( "Ccr7", "Id3", "Tcf7", "Slamf6", "Itgb1", "Nsg2", "Bcl2", "Cd9", "Il7r", "Rflnb", "Bhlhe40"))
+
+
+idk <- FindAllMarkers(CD4_Tfh_subsets, only.pos = T)
+write.csv(idk, "CD4_Tfh_subsets_markers_pure.csv")
+#run the first 2 lines individually then null it
+CD4_Tfh_subsets_markers_pure <- read.csv("CD4_Tfh_subsets_markers_pure.csv", row.names = 1)
+CD4_Tfh_subsets_markers_pure %>% group_by(cluster) %>% top_n(10, wt = avg_logFC)
+
+
+
+```
+
+```{r Monocle for Tfh subsets}
+
+data_monocle_Tfh <- newCellDataSet(cellData = as.matrix(idk@assays$RNA@counts), phenoData = new("AnnotatedDataFrame", data = idk@meta.data))
+data_monocle_Tfh@phenoData@data$current_ident <- idk@active.ident
+data_monocle_Tfh <- estimateSizeFactors(data_monocle_Tfh)
+data_monocle_Tfh <- estimateDispersions(data_monocle_Tfh)
+data_monocle_Tfh <- detectGenes(data_monocle_Tfh, min_expr = 0.1)
+expressed_genes <- row.names(subset(fData(data_monocle_Tfh), num_cells_expressed >= 0.05 * ncol(data_monocle_Tfh)))
+
+# Find the top markers per cluster for Monocle to use
+DefaultAssay(idk) <- "RNA"
+markers_Tfh <- FindAllMarkers(idk)
+markers_Tfh <- subset(markers_Tfh, p_val_adj < 0.05 & abs(avg_logFC) > 0.25)
+
+# Fewer genes make graph simpler, more genes make graph more complex
+top_markers_per_cluster_Tfh <- markers_Tfh %>% group_by(cluster) %>% top_n(-100, p_val_adj)
+data_ordering_genes_Tfh <- unique(top_markers_per_cluster_Tfh$gene)
+
+# Run monocle, regressing out mouse sample and the number of genes detected per cell
+data_monocle_Tfh <- setOrderingFilter(data_monocle_Tfh, ordering_genes = data_ordering_genes_Tfh)
+plot_ordering_genes(data_monocle_Tfh)
+data_monocle_Tfh <- reduceDimension(data_monocle_Tfh, reduction_method = "DDRTree", max_components = 2, residualModelFormulaStr = "~orig.ident + num_genes_expressed")
+data_monocle_Tfh <- orderCells(data_monocle_Tfh, reverse = T)
+plot_cell_trajectory(data_monocle_Tfh)
+
+## ordering cells by assigning root nodes
+TCMPstate <- function(data_monocle_Tfh){
+  if (length(unique(data_monocle_Tfh$State)) > 1){
+    T0_counts <- table(pData(data_monocle_Tfh)$State, pData(data_monocle_Tfh)$current_ident)[,"Tcmp"]
+    return(as.numeric(names(T0_counts)[which
+                                       (T0_counts == max(T0_counts))]))
+  } else {
+    return (1)
+  }
+}
+data_monocle_RTstate_Tfh <- orderCells(data_monocle_Tfh, root_state =  TCMPstate(data_monocle_Tfh))
+plot_cell_trajectory(data_monocle_RTstate_Tfh, color_by = "current_ident", cell_size = .5)
+# ggsave("Figures/Monocle_TfhSubsets.png")
+
+# saveRDS(data_monocle_RTstate_Tfh, "Monocle2_Analysis/ARMD10Tfh.RDS")
+data_monocle_RTstate_Tfh <- readRDS("Monocle2_Analysis/ARMD10Tfh.RDS")
+
+#Monocle Graphs
+plot_cell_trajectory(data_monocle_Tfh, color_by = "current_ident", cell_size = 0.2)
+# ggsave("Monocle2_Analysis/MonocleRAWday10ARM.png")
+
+plot_cell_trajectory(data_monocle_RTstate, color_by = "Pseudotime", cell_size = 0.2)
+# ggsave("Monocle2_Analysis/MonocleRAWday10ARM_Pseudotime.png")
+
+plot_cell_trajectory(data_monocle_RTstate, color_by = "current_ident", cell_size = 0.2) + facet_wrap(~current_ident)
+# ggsave("Figures/MonocleFacetWrap.png")
+
+#plot genes 
+#plot_genes_branched_pseudotime function, which works a lot like the plot_genes_in_pseudotime function, except it shows two kinetic trends, one for each lineage, instead of one. http://cole-trapnell-lab.github.io/monocle-release/docs/#constructing-single-cell-trajectories
+
+
+#Receptors
+plot_genes_in_pseudotime(data_monocle_RTstate_Tfh[c("Il21r", "Il6ra", "Il4ra", "Il27ra", "Il2ra", "Il2rb", "Il12rb1"), ],
+                               color_by = "current_ident",
+                               cell_size = .75,
+                               ncol = 2) + labs(idk, title = "Receptors")
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Receptors.png") 
+
+DotPlot(idk, features = c("Il21r", "Il6ra", "Il4ra", "Il27ra", "Il2ra", "Il2rb", "Il12rb1")) + labs(idk, title = "Receptors") + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Receptors_Dotplot.png") 
+
+#Tfh Signature genes
+plot_genes_in_pseudotime(data_monocle_RTstate[c("Cxcr5", "Bcl6", "Ascl2", "Pdcd1", "Icos", "Il21", "Il4", "Sostdc1", "Tox", "Tox2"), ],
+                               color_by = "current_ident",
+                               cell_size = 0.75,
+                               ncol = 3) + labs(idk, title = "Tfh Gene Signature")
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Tfhgenes.png")
+DotPlot(idk, features = c("Cxcr5", "Bcl6", "Ascl2", "Pdcd1", "Icos", "Il21", "Il4", "Sostdc1", "Tox", "Tox2", "Tbx21")) + labs(idk, title = "Tfh Gene Signature") + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_Tfhgenes_Dotplot.png")
+
+#AP-1 transcription factors
+plot_genes_in_pseudotime(data_monocle_RTstate[c("Jun", "Junb", "Jund", "Fos", "Batf", "Batf3", "Atf2", "Atf3", "Atf4", "Maf", "Mafa", "Mafb", "Mafg"), ],
+                               color_by = "current_ident",
+                               cell_size = 0.5,
+                               ncol = 3) + labs(idk, title = "AP-1 Transcription Factors")
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_AP1genes.png")
+
+DotPlot(idk, features = c("Jun", "Junb", "Jund", "Fos", "Batf", "Batf3", "Atf2", "Atf3", "Atf4", "Maf", "Mafa", "Mafb", "Mafg")) + labs(idk, title = "AP-1 Transcription Factors") + theme(axis.text.x = element_text(angle = 40))
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_AP1genes_Dotplot.png")
+
+#Genes from RNASeq data
+plot_genes_in_pseudotime(data_monocle_RTstate[c("Lad1", "Wnt10a", "Cd109", "Wnt3", "Oasl2", "Epas1", "Cbr2", "Ifi211", "Ifit3", "Eomes", "Sostdc1", "Epcam", "Padi4", "Foxp3", "Rgs16", "Rbm44", "Fgf2", "S100a4", "S100a6", "S100a8", "Ccl3", "Ccr8", "Slc7a10", "Ccl4", "Reg1"), ],
+                               color_by = "current_ident",
+                               cell_size = 0.5,
+                               ncol = 5) + labs(idk, title = "RNA-Seq data genes") 
+#ggsave("Monocle2_Analysis/PseudotimeGeneExp_RNASeqdatagenes.png")
+
+DotPlot(idk, features = c("Lad1", "Wnt10a", "Cd109", "Wnt3", "Oasl2", "Epas1", "Cbr2", "Ifi211", "Ifit3", "Eomes", "Sostdc1", "Epcam", "Padi4", "Foxp3", "Rgs16", "Rbm44", "Fgf2", "S100a4", "S100a6", "S100a8", "Ccl3", "Ccr8", "Slc7a10", "Ccl4", "Reg1")) + labs(idk, title = "RNASeq data genes") + theme(axis.text.x = element_text(angle = 40, size = 8)) 
+# ggsave("Monocle2_Analysis/PseudotimeGeneExp_RNASeqdatagenes_Dotplot.png")
+
+plot_genes_in_pseudotime(data_monocle_RTstate_Tfh[c("Bhlhe40")],
+                               color_by = "current_ident",
+                               cell_size = 1,
+                               ncol = 4) + labs(idk) 
+# ggsave("Monocle2_Analysis/Tfhrelatedgenes_bhlhe40.png")
+
+```
+
+```{r Tfh subsets - Module Score}
+#this is usually in RNA
+#For up, If your dot plot is really purple, that means it has alot of upregulation of the gene sets
+#For down, If dot pit is really purple, that means that gene is very downregulated 
+
+#IL6R Signaling pathway
+Geneset_IL6Pathway <- read_tsv("Gene_sets/GSE21670_UNTREATED_VS_IL6_TREATED_CD4_TCELL_UP.v2022.1.Hs.tsv") %>% filter (STANDARD_NAME == "MAPPED_SYMBOLS") %>%  pull(2) %>% strsplit(split = ",") %>% unlist()
+
+#lowercase for mice, since data set is in human (CAPS)
+Geneset_IL6Pathway<- paste0(
+ substring(Geneset_IL6Pathway, 1, 1),
+ tolower(substring(Geneset_IL6Pathway, 2)))
+#once you run this line, make sure you see that your gene list becomes all lowercase
+
+#incorporate the geneset into your data, the number of genes should be lowered
+Geneset_IL6Pathway <- Geneset_IL6Pathway[which(Geneset_IL6Pathway %in% rownames(idk))]
+
+#list the mf genes
+Geneset_IL6Pathway <- list(Geneset_IL6Pathway)
+#you can check if there are actual genes from the dataset present in your object by running a sample dotplot with a few of the genes listed "DotPlot(idk, features = c("Abhd15", "Adra1d", "Agap3"))"
+
+#add module score
+idk <- AddModuleScore(idk, features = Geneset_IL6Pathway, name = "Geneset_Il6Pathway")
+#after adding the module score run:
+#View(object) in the console to check that the "Geneset_Il6Pathway1" is in the Metadata, there is usually a number associated at the end
+
+DotPlot(idk, features = c("Geneset_Il6Pathway1"))
+# ggsave("Module_Score/Il6PathwayUP_DotPlot.png")
+VlnPlot(idk, features = c("Geneset_Il6Pathway1"))
+# ggsave("Module_Score/Il6PathwayUP_VlnPlot.png")
+
+#TCR Signaling
+Geneset_TCRPathway <- read_tsv("Gene_sets/GSE13738_RESTING_VS_TCR_ACTIVATED_CD4_TCELL_UP.v2022.1.Hs.tsv") %>% filter (STANDARD_NAME == "MAPPED_SYMBOLS") %>%  pull(2) %>% strsplit(split = ",") %>% unlist()
+
+Geneset_TCRPathway<- paste0(
+ substring(Geneset_TCRPathway, 1, 1),
+ tolower(substring(Geneset_TCRPathway, 2)))
+
+Geneset_TCRPathway <- Geneset_TCRPathway[which(Geneset_TCRPathway %in% rownames(idk))]
+
+Geneset_TCRPathway <- list(Geneset_TCRPathway)
+
+idk <- AddModuleScore(idk, features = Geneset_TCRPathway, name = "Geneset_TCRPathway")
+
+DotPlot(idk, features = c("Geneset_TCRPathway1"))
+# ggsave("Module_Score/TCRPathwayUP_DotPlot.png")
+VlnPlot(idk, features = c("Geneset_TCRPathway1"))
+# ggsave("Module_Score/TCRPathwayUP_VlnPlot.png")
+
+#IL21 Signaling Pathway
+Geneset_Il21Pathway <- read_tsv("Gene_sets/IL21_UP.V1_UP.v2022.1.Hs.tsv") %>% filter (STANDARD_NAME == "MAPPED_SYMBOLS") %>%  pull(2) %>% strsplit(split = ",") %>% unlist()
+
+Geneset_Il21Pathway <- paste0(
+ substring(Geneset_Il21Pathway, 1, 1),
+ tolower(substring(Geneset_Il21Pathway, 2)))
+
+Geneset_Il21Pathway <- Geneset_Il21Pathway[which(Geneset_Il21Pathway %in% rownames(idk))]
+
+Geneset_Il21Pathway <- list(Geneset_Il21Pathway)
+
+idk <- AddModuleScore(idk, features = Geneset_Il21Pathway, name = "Geneset_Il21Pathway")
+
+DotPlot(idk, features = c("Geneset_Il21Pathway1"))
+# ggsave("Module_Score/Il21PathwayUP_DotPlot.png")
+VlnPlot(idk, features = c("Geneset_Il21Pathway1"))
+# ggsave("Module_Score/Il21PathwayUP_VlnPlot.png")
+
+```
+
+
+```{r Save Subset as tsvs for Compass Analysis}
+# Save **normalized** counts for each subset as a TSV file for Compass to do single-cell metabolic analysis
+
+write.table(as.data.frame(CD4_Tfh_subsets@assays$RNA@data[, CD4_Tfh_subsets@meta.data %>% filter(seurat_clusters == 4) %>% rownames()]),
+            file = "Compass_inputs/Matrix_Tfh1.tsv",
+            row.names = T, col.names = NA, sep = "\t")
+
+write.table(as.data.frame(CD4_Tfh_subsets@assays$RNA@data[, CD4_Tfh_subsets@meta.data %>% filter(seurat_clusters == 3) %>% rownames()]),
+            file = "Compass_inputs/Matrix_GCTfh.tsv",
+            row.names = T, col.names = NA, sep = "\t")
+
+
+```
+
+
+
+
+
+
